@@ -25,10 +25,8 @@ fn main() -> std::io::Result<()> {
             }
             Err(e) => {
                 eprintln!("Error receiving data: {}", e);
-                break;
+                std::process::exit(1);
             }
         }
     }
-
-    Ok(())
 }
