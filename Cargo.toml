@@ -4,5 +4,4 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-nalgebra = "0.33.2"
-tokio = "1.43.0"
+nalgebra = "0.33.2" # TODO: implement manually
