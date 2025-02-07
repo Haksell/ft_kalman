@@ -1,7 +1,7 @@
 use std::{net::UdpSocket, str};
 
 const SERVER_ADDR: &str = "127.0.0.1:4242";
-const LOCAL_ADDR: &str = "127.0.0.1:5555"; // Client binds to a local port
+const LOCAL_ADDR: &str = "127.0.0.1:5555";
 
 #[derive(Debug)]
 struct Vec3 {
@@ -29,6 +29,11 @@ impl Vec3 {
     }
 }
 
+fn ignore_message(socket: &UdpSocket) {
+    let mut buf = [0u8; 1];
+    let _ = socket.recv(&mut buf);
+}
+
 fn read_message<'a>(socket: &UdpSocket, buf: &'a mut [u8; 1024]) -> &'a str {
     match socket.recv(buf) {
         Ok(received) => str::from_utf8(&buf[..received]).unwrap_or("<Invalid UTF-8>"),
@@ -37,18 +42,18 @@ fn read_message<'a>(socket: &UdpSocket, buf: &'a mut [u8; 1024]) -> &'a str {
 }
 
 fn read_measurements(socket: &UdpSocket, buf: &mut [u8; 1024]) -> (Vec3, Vec3) {
-    read_message(socket, buf);
+    ignore_message(socket);
 
     let acceleration = Vec3::read(socket, buf);
     let direction = Vec3::read(socket, buf);
 
-    read_message(&socket, buf);
+    ignore_message(socket);
 
     (acceleration, direction)
 }
 
 fn read_debug_measurements(socket: &UdpSocket, buf: &mut [u8; 1024]) -> (Vec3, f64, Vec3, Vec3) {
-    read_message(socket, buf);
+    ignore_message(socket);
 
     let position = Vec3::read(socket, buf);
     let speed: f64 = read_message(socket, buf)
@@ -61,7 +66,7 @@ fn read_debug_measurements(socket: &UdpSocket, buf: &mut [u8; 1024]) -> (Vec3, f
     let acceleration = Vec3::read(socket, buf);
     let direction = Vec3::read(socket, buf);
 
-    read_message(&socket, buf);
+    ignore_message(socket);
 
     (position, speed, acceleration, direction)
 }
