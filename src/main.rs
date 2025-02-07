@@ -11,14 +11,21 @@ struct Vec3 {
 }
 
 impl Vec3 {
+    fn read(socket: &UdpSocket, buf: &mut [u8; 1024]) -> Self {
+        let msg = read_message(socket, buf);
+        println!("{}", &msg[0..14]);
+        let lines: Vec<&str> = msg.lines().skip(1).collect();
+        Self::from_lines(&lines).unwrap()
+    }
+
     fn from_lines(lines: &[&str]) -> Option<Self> {
-        if lines.len() < 3 {
+        if lines.len() != 3 {
             return None;
         }
         let x = lines[0].parse().ok()?;
         let y = lines[1].parse().ok()?;
         let z = lines[2].parse().ok()?;
-        Some(Vec3 { x, y, z })
+        Some(Self { x, y, z })
     }
 }
 
@@ -27,6 +34,36 @@ fn read_message<'a>(socket: &UdpSocket, buf: &'a mut [u8; 1024]) -> &'a str {
         Ok(received) => str::from_utf8(&buf[..received]).unwrap_or("<Invalid UTF-8>"),
         Err(e) => panic!("Error receiving data: {}", e),
     }
+}
+
+fn read_measurements(socket: &UdpSocket, buf: &mut [u8; 1024]) -> (Vec3, Vec3) {
+    read_message(socket, buf);
+
+    let acceleration = Vec3::read(socket, buf);
+    let direction = Vec3::read(socket, buf);
+
+    read_message(&socket, buf);
+
+    (acceleration, direction)
+}
+
+fn read_debug_measurements(socket: &UdpSocket, buf: &mut [u8; 1024]) -> (Vec3, f64, Vec3, Vec3) {
+    read_message(socket, buf);
+
+    let position = Vec3::read(socket, buf);
+    let speed: f64 = read_message(socket, buf)
+        .lines()
+        .skip(1)
+        .next()
+        .unwrap()
+        .parse()
+        .unwrap();
+    let acceleration = Vec3::read(socket, buf);
+    let direction = Vec3::read(socket, buf);
+
+    read_message(&socket, buf);
+
+    (position, speed, acceleration, direction)
 }
 
 fn main() -> std::io::Result<()> {
@@ -38,70 +75,22 @@ fn main() -> std::io::Result<()> {
 
     let mut buf = [0; 1024];
 
-    println!("A {}", read_message(&socket, &mut buf));
-    println!("B {}", read_message(&socket, &mut buf));
-    println!("C {}", read_message(&socket, &mut buf));
+    read_message(&socket, &mut buf);
+    read_message(&socket, &mut buf);
 
-    // Reading true position
-    let pos_msg = read_message(&socket, &mut buf);
-    println!("D {}", pos_msg);
-    let pos_lines: Vec<&str> = pos_msg.lines().skip(1).collect();
-    let position = Vec3::from_lines(&pos_lines).unwrap_or(Vec3 {
-        x: 0.0,
-        y: 0.0,
-        z: 0.0,
-    });
-
-    // Reading speed
-    let speed_msg = read_message(&socket, &mut buf);
-    println!("E {}", speed_msg);
-    let speed: f64 = speed_msg
-        .lines()
-        .skip(1)
-        .next()
-        .unwrap_or("0.0")
-        .parse()
-        .unwrap_or(0.0);
-
-    // Reading acceleration
-    let acc_msg = read_message(&socket, &mut buf);
-    println!("F {}", acc_msg);
-    let acc_lines: Vec<&str> = acc_msg.lines().skip(1).collect();
-    let acceleration = Vec3::from_lines(&acc_lines).unwrap_or(Vec3 {
-        x: 0.0,
-        y: 0.0,
-        z: 0.0,
-    });
-
-    // Reading direction
-    let dir_msg = read_message(&socket, &mut buf);
-    println!("G {}", dir_msg);
-    let dir_lines: Vec<&str> = dir_msg.lines().skip(1).collect();
-    let direction = Vec3::from_lines(&dir_lines).unwrap_or(Vec3 {
-        x: 0.0,
-        y: 0.0,
-        z: 0.0,
-    });
-
-    // End message
-    println!("H {}", read_message(&socket, &mut buf));
-
+    let (position, speed, acceleration, direction) = read_debug_measurements(&socket, &mut buf);
     println!("\nParsed Data:");
     println!("Position: {:?}", position);
     println!("Speed: {}", speed);
     println!("Acceleration: {:?}", acceleration);
     println!("Direction: {:?}", direction);
-
-    // Responding with fixed position (0, 0, 0)
     socket.send(format!("{} {} {}", position.x, position.y, position.z).as_bytes())?;
 
-    println!("I {}", read_message(&socket, &mut buf));
-    println!("J {}", read_message(&socket, &mut buf));
-    println!("K {}", read_message(&socket, &mut buf));
-    println!("L {}", read_message(&socket, &mut buf));
-    println!("M {}", read_message(&socket, &mut buf));
-    println!("N {}", read_message(&socket, &mut buf));
-    println!("O {}", read_message(&socket, &mut buf));
-
-    Ok(())
+    loop {
+        let (acceleration, direction) = read_measurements(&socket, &mut buf);
+        println!("\nParsed Data:");
+        println!("Acceleration: {:?}", acceleration);
+        println!("Direction: {:?}", direction);
+        socket.send(format!("{} {} {}", position.x, position.y, position.z).as_bytes())?;
+    }
 }
